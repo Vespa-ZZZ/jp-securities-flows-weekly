@@ -63,6 +63,7 @@ Weekly monitoring with revision detection (schedule after the weekly release —
 - Values are in **100 million yen** as published. **Net = acquisition − disposition**: a plus sign means net acquisition (buying), minus means net disposition (selling).
 - Figures are based on reports from designated major investors; totals may not add up exactly due to rounding (as noted by MOF). From January 2014 investment-fund transactions are recorded under "equity and investment fund shares".
 - In monitoring mode, `changeType` is `new` or `revision`. Rows carry a stable `eventId` (week + published values) for de-duplication downstream. Corrections that change only a week's dates are not detected. Only the weeks inside the selected range (`latestWeeks` or `from`/`to`) are compared, so choose a range that covers the revisions you care about (e.g. the last 12 weeks).
+- When the pay-per-event spending limit is reached, the run stops with a warning. The next monitoring run retries remaining rows within the selected range. If a long-format week is split across runs, the next run resumes at the first unsaved row for the same published values.
 - `equityIncludesInvestmentFunds` is `true` from January 2014, when MOF moved investment-fund transactions (including open-end contractual funds previously under long-term debt) into "equity and investment fund shares". Take this into account when comparing across 2014.
 
 ## How it works

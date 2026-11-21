@@ -5,22 +5,29 @@ import { run } from '../src/run.js';
 
 const bytes = readFileSync(new URL('./fixtures/week.csv', import.meta.url));
 
-async function exec(input, body = bytes, state = new Map()) {
+async function exec(input, body = bytes, state = new Map(), chargeResult) {
     const records = [];
     const lifecycle = [];
+    const warnings = [];
+    const values = new Map();
     let requests = 0;
+    let pushes = 0;
     const actor = {
         async init() {},
         async getInput() { return input; },
         async openKeyValueStore() { return { getValue: async (k) => structuredClone(state.get(k) ?? null), setValue: async (k, v) => { state.set(k, structuredClone(v)); } }; },
-        async pushData(r) { records.push(...r); },
-        async setValue() {},
+        async pushData(rows) {
+            pushes++;
+            records.push(...(chargeResult?.eventChargeLimitReached ? rows.slice(0, chargeResult.chargedCount) : rows));
+            return chargeResult;
+        },
+        async setValue(k, v) { values.set(k, v); },
         async exit() { lifecycle.push('exit'); },
         async fail(m) { lifecycle.push('fail', m); },
     };
-    const log = { info() {}, warning() {}, error() {} };
+    const log = { info() {}, warning(m) { warnings.push(m); }, error() {} };
     await run({ actor, log, fetchImpl: async () => { requests++; return typeof body === 'number' ? new Response('x', { status: body }) : new Response(body); }, sleep: async () => {} });
-    return { records, lifecycle, requests };
+    return { records, lifecycle, requests, warnings, pushes, summary: values.get('RUN_SUMMARY') };
 }
 
 test('default: latest 8 weeks in wide format with unit and source', async () => {
@@ -80,6 +87,27 @@ test('a failed batch does not re-output already written weeks', async () => {
     assert.equal(Object.keys(state.get('weeks-default')).length, 60);
     const again = await exec({ onlyNew: true, latestWeeks: 65, format: 'long' }, bytes, state);
     assert.equal(again.records.length, 5 * 8);
+});
+
+test('a charge-limited long-format write resumes at the first unsaved row of a split week', async () => {
+    const input = { onlyNew: true, latestWeeks: 65, format: 'long' };
+    const state = new Map();
+    const first = await exec(input, bytes, state, { eventChargeLimitReached: true, chargedCount: 11 });
+    assert.deepEqual(first.lifecycle, ['exit']);
+    assert.equal(first.pushes, 1);
+    assert.equal(first.summary.pushed, 11);
+    assert.match(first.warnings[0], /charge limit reached/i);
+    const progress = state.get('weeks-default');
+    assert.equal(typeof progress[first.records[0].weekStart], 'string');
+    assert.equal(progress[first.records.at(-1).weekStart].rows, 3);
+
+    const second = await exec(input, bytes, state, { eventChargeLimitReached: true, chargedCount: 2 });
+    assert.equal(second.summary.pushed, 2);
+    const next = await exec(input, bytes, state, { eventChargeLimitReached: false, chargedCount: 0 });
+    assert.equal(next.summary.pushed, 65 * 8 - 13);
+    const full = await exec(input);
+    assert.deepEqual([...first.records, ...second.records, ...next.records], full.records);
+    assert.equal((await exec(input, bytes, state)).summary.pushed, 0);
 });
 
 test('Retry-After is honoured and invalid numbers rejected', async () => {

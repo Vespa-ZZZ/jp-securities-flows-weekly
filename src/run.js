@@ -86,32 +86,42 @@ export async function run({ actor, log, fetchImpl = fetch, sleep = delay }) {
         const todo = [];
         for (const w of selected) {
             const fp = fingerprint(w);
-            let changeType = null;
-            if (onlyNew) {
-                if (!(w.weekStart in state)) changeType = 'new';
-                else if (state[w.weekStart] !== fp) changeType = 'revision';
-                else continue;
-            }
-            todo.push({ w, fp, changeType });
+            const saved = state[w.weekStart];
+            const previous = typeof saved === 'string' ? saved : saved?.previous;
+            if (onlyNew && previous === fp) continue;
+            const changeType = onlyNew ? (previous === undefined ? 'new' : 'revision') : null;
+            const offset = format === 'long' && saved?.fingerprint === fp ? saved.rows : 0;
+            todo.push({ w, fp, previous, changeType, offset });
         }
 
-        // Write whole weeks per batch and save the state for exactly those weeks after each successful write,
-        // so a failure never re-outputs weeks that were already written.
+        // Checkpoint each batch, including progress within a week when a long-format batch is cut short.
         let pushed = 0;
         for (let i = 0; i < todo.length; i += WEEKS_PER_BATCH) {
             const batch = todo.slice(i, i + WEEKS_PER_BATCH);
-            const rows = [];
-            for (const { w, fp, changeType } of batch) {
+            const rowsByWeek = batch.map(({ w, fp, changeType, offset }) => {
                 // eventId is stable per week and published values, so consumers can de-duplicate after a rerun.
                 const meta = { unit: UNIT, lastUpdated, sourceUrl: CSV_URL, source: SOURCE, ...(changeType ? { changeType, eventId: `${w.weekStart}:${createHash('sha1').update(fp).digest('hex').slice(0, 12)}` } : {}) };
-                if (format === 'wide') rows.push({ ...w, ...meta });
-                else for (const row of toLong(w)) rows.push({ ...row, equityIncludesInvestmentFunds: w.equityIncludesInvestmentFunds, ...meta });
-            }
-            await actor.pushData(rows);
-            pushed += rows.length;
-            if (onlyNew) {
-                for (const { w, fp } of batch) state[w.weekStart] = fp;
+                if (format === 'wide') return [{ ...w, ...meta }];
+                return toLong(w).slice(offset).map((row) => ({ ...row, equityIncludesInvestmentFunds: w.equityIncludesInvestmentFunds, ...meta }));
+            });
+            const rows = rowsByWeek.flat();
+            const result = await actor.pushData(rows);
+            const chargeLimitReached = result?.eventChargeLimitReached === true;
+            const savedCount = chargeLimitReached ? result.chargedCount : rows.length;
+            pushed += savedCount;
+            if (onlyNew && savedCount > 0) {
+                let remaining = savedCount;
+                for (const [index, { w, fp, previous, offset }] of batch.entries()) {
+                    if (remaining === 0) break;
+                    const size = rowsByWeek[index].length;
+                    state[w.weekStart] = remaining >= size ? fp : { fingerprint: fp, previous, rows: offset + remaining };
+                    remaining -= Math.min(remaining, size);
+                }
                 await saveWithRetry(() => store.setValue(`weeks-${stateKey}`, state), sleep, log);
+            }
+            if (chargeLimitReached) {
+                log.warning('Pay-per-event charge limit reached. Stopping dataset output.');
+                break;
             }
         }
 
