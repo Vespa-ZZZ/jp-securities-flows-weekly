@@ -1,0 +1,57 @@
+{
+    "title": "Japan weekly portfolio investment flows (MOF)",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "latestWeeks": {
+            "title": "Latest N weeks",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000,
+            "default": 8,
+            "prefill": 8,
+            "description": "Number of most recent weeks to return. Ignored when a date range is set."
+        },
+        "from": {
+            "title": "From (week end on or after)",
+            "type": "string",
+            "editor": "datepicker",
+            "description": "Optional start date (YYYY-MM-DD). The series starts in January 2005."
+        },
+        "to": {
+            "title": "To (week start on or before)",
+            "type": "string",
+            "editor": "datepicker",
+            "description": "Optional end date (YYYY-MM-DD)."
+        },
+        "format": {
+            "title": "Output format",
+            "type": "string",
+            "editor": "select",
+            "enum": [
+                "wide",
+                "long"
+            ],
+            "enumTitles": [
+                "One row per week (all series as fields)",
+                "One row per week × flow × asset class"
+            ],
+            "default": "wide",
+            "description": "Wide is convenient for spreadsheets; long is convenient for BI tools and charts."
+        },
+        "onlyNew": {
+            "title": "Monitoring mode: new weeks and revisions only",
+            "type": "boolean",
+            "default": false,
+            "description": "Remember the published values of each week and output only new weeks (changeType = new) and weeks whose published values changed (changeType = revision). Schedule weekly after the release (usually Thursday, Japan time; holidays shift it — see the MOF release schedule)."
+        },
+        "stateKey": {
+            "title": "Monitoring state key",
+            "type": "string",
+            "editor": "textfield",
+            "pattern": "^[a-zA-Z0-9_-]{1,50}$",
+            "default": "default",
+            "description": "Separate state per schedule. Letters, digits, - and _ only."
+        }
+    }
+}

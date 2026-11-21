@@ -1,0 +1,16 @@
+{
+  "name": "jp-securities-flows-weekly",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Japan weekly portfolio investment flows (MOF): residents abroad and non-residents into Japan, by asset class, with revision detection.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test test/mof.test.js test/run.test.js"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "apify": "^3.2.6"
+  }
+}

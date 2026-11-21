@@ -1,0 +1,114 @@
+{
+    "actorSpecification": 1,
+    "views": {
+        "overview": {
+            "title": "Overview",
+            "transformation": {
+                "fields": [
+                    "weekStart",
+                    "weekEnd",
+                    "outward.equityNet",
+                    "outward.longTermDebtNet",
+                    "outward.totalNet",
+                    "inward.equityNet",
+                    "inward.longTermDebtNet",
+                    "inward.totalNet",
+                    "changeType"
+                ],
+                "flatten": [
+                    "outward",
+                    "inward"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "weekStart": {
+                        "label": "Week start",
+                        "format": "date"
+                    },
+                    "weekEnd": {
+                        "label": "Week end",
+                        "format": "date"
+                    },
+                    "outward.equityNet": {
+                        "label": "Outward equity net",
+                        "format": "number"
+                    },
+                    "outward.longTermDebtNet": {
+                        "label": "Outward LT bonds net",
+                        "format": "number"
+                    },
+                    "outward.totalNet": {
+                        "label": "Outward total net",
+                        "format": "number"
+                    },
+                    "inward.equityNet": {
+                        "label": "Inward equity net",
+                        "format": "number"
+                    },
+                    "inward.longTermDebtNet": {
+                        "label": "Inward LT bonds net",
+                        "format": "number"
+                    },
+                    "inward.totalNet": {
+                        "label": "Inward total net",
+                        "format": "number"
+                    },
+                    "changeType": {
+                        "label": "Change"
+                    }
+                }
+            }
+        },
+        "long": {
+            "title": "Long format",
+            "transformation": {
+                "fields": [
+                    "weekStart",
+                    "weekEnd",
+                    "flow",
+                    "asset",
+                    "acquisition",
+                    "disposition",
+                    "net",
+                    "changeType"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "weekStart": {
+                        "label": "Week start",
+                        "format": "date"
+                    },
+                    "weekEnd": {
+                        "label": "Week end",
+                        "format": "date"
+                    },
+                    "flow": {
+                        "label": "Flow"
+                    },
+                    "asset": {
+                        "label": "Asset"
+                    },
+                    "acquisition": {
+                        "label": "Acquisition",
+                        "format": "number"
+                    },
+                    "disposition": {
+                        "label": "Disposition",
+                        "format": "number"
+                    },
+                    "net": {
+                        "label": "Net",
+                        "format": "number"
+                    },
+                    "changeType": {
+                        "label": "Change"
+                    }
+                }
+            }
+        }
+    }
+}

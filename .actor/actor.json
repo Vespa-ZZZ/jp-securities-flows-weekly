@@ -1,0 +1,14 @@
+{
+    "actorSpecification": 1,
+    "name": "jp-securities-flows-weekly",
+    "title": "Japan Weekly Portfolio Investment Flows (MOF)",
+    "description": "Weekly foreign investment flows in and out of Japanese and foreign securities from the Ministry of Finance: equities, long- and short-term bonds, with new-week and revision monitoring.",
+    "version": "1.0",
+    "buildTag": "latest",
+    "input": "./input_schema.json",
+    "storages": {
+        "dataset": "./dataset_schema.json"
+    },
+    "dockerfile": "../Dockerfile",
+    "output": "./output_schema.json"
+}
