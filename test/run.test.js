@@ -5,7 +5,7 @@ import { run } from '../src/run.js';
 
 const bytes = readFileSync(new URL('./fixtures/week.csv', import.meta.url));
 
-async function exec(input, body = bytes, state = new Map(), chargeResult) {
+async function exec(input, body = bytes, state = new Map(), chargeResult, configureActor) {
     const records = [];
     const lifecycle = [];
     const warnings = [];
@@ -26,6 +26,7 @@ async function exec(input, body = bytes, state = new Map(), chargeResult) {
         async fail(m) { lifecycle.push('fail', m); },
     };
     const log = { info() {}, warning(m) { warnings.push(m); }, error() {} };
+    configureActor?.(actor, records);
     await run({ actor, log, fetchImpl: async () => { requests++; return typeof body === 'number' ? new Response('x', { status: body }) : new Response(body); }, sleep: async () => {} });
     return { records, lifecycle, requests, warnings, pushes, summary: values.get('RUN_SUMMARY') };
 }
@@ -145,4 +146,27 @@ test('state save failures are retried; rows carry a stable eventId', async () =>
     assert.equal(Object.keys(state.get('weeks-default')).length, 2);
     assert.ok(records.every((r) => /^\d{4}-\d{2}-\d{2}:[0-9a-f]{12}$/.test(r.eventId)));
     assert.match((await exec({ onlyNew: 'false' })).lifecycle[1], /onlyNew/);
+});
+
+test('prechecks the dataset item budget and allows non-PPE output', async () => {
+    for (const [isPayPerEvent, budget] of [[true, 1], [true, 0], [false, 0]]) {
+        const configureActor = (actor, records) => {
+            actor.getChargingManager = () => ({
+                getPricingInfo: () => ({ isPayPerEvent }),
+                calculateMaxEventChargeCountWithinLimit(event) {
+                    assert.equal(event, 'apify-default-dataset-item');
+                    return budget - records.length;
+                },
+            });
+        };
+        const input = { onlyNew: true, latestWeeks: 1, format: 'long' };
+        const state = new Map();
+        const result = await exec(input, bytes, state, undefined, configureActor);
+        assert.deepEqual(result.lifecycle, ['exit']);
+        assert.equal(result.records.length, isPayPerEvent ? budget : 8);
+        assert.equal(result.summary.pushed, result.records.length);
+        assert.equal(result.summary.stopReason, isPayPerEvent ? 'spendingLimit' : undefined);
+        const next = await exec(input, bytes, state);
+        assert.equal(next.records.length, 8 - result.records.length);
+    }
 });

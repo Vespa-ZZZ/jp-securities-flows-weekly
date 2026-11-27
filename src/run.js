@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { createHash } from 'node:crypto';
+import { pushDataWithinLimit } from './charging.js';
 import { CSV_URL, SOURCE, UNIT, decode, fingerprint, parseWeekly, sanitize, toLong } from './mof.js';
 
 const USER_AGENT = 'jp-securities-flows-weekly-actor/1.0';
@@ -96,6 +97,7 @@ export async function run({ actor, log, fetchImpl = fetch, sleep = delay }) {
 
         // Checkpoint each batch, including progress within a week when a long-format batch is cut short.
         let pushed = 0;
+        let chargeLimitReached = false;
         for (let i = 0; i < todo.length; i += WEEKS_PER_BATCH) {
             const batch = todo.slice(i, i + WEEKS_PER_BATCH);
             const rowsByWeek = batch.map(({ w, fp, changeType, offset }) => {
@@ -105,8 +107,8 @@ export async function run({ actor, log, fetchImpl = fetch, sleep = delay }) {
                 return toLong(w).slice(offset).map((row) => ({ ...row, equityIncludesInvestmentFunds: w.equityIncludesInvestmentFunds, ...meta }));
             });
             const rows = rowsByWeek.flat();
-            const result = await actor.pushData(rows);
-            const chargeLimitReached = result?.eventChargeLimitReached === true;
+            const result = await pushDataWithinLimit(actor, rows);
+            chargeLimitReached = result?.eventChargeLimitReached === true;
             const savedCount = chargeLimitReached ? result.chargedCount : rows.length;
             pushed += savedCount;
             if (onlyNew && savedCount > 0) {
@@ -125,7 +127,10 @@ export async function run({ actor, log, fetchImpl = fetch, sleep = delay }) {
             }
         }
 
-        await actor.setValue('RUN_SUMMARY', { weeksInSource: weeks.length, selected: selected.length, pushed, lastUpdated });
+        await actor.setValue('RUN_SUMMARY', {
+            weeksInSource: weeks.length, selected: selected.length, pushed, lastUpdated,
+            ...(chargeLimitReached && { stopReason: 'spendingLimit' }),
+        });
         log.info(`Done. Pushed ${pushed} rows (source last updated: ${lastUpdated ?? 'unknown'}).`);
         await actor.exit();
     } catch (err) {
